@@ -1,0 +1,27 @@
+name: Dependency accumulator
+description:
+  Merge only current, validated Dependabot pull requests into a review branch.
+author: mstrict-actions
+inputs:
+  github-token:
+    description:
+      Token with contents, pull requests, and actions write permissions.
+    required: true
+  branch:
+    description: Accumulator branch.
+    required: true
+  base-branch:
+    description: Main branch used by the aggregate pull request.
+    default: main
+  checks-workflow:
+    description: Filename of the required checks workflow.
+    required: true
+  required-jobs:
+    description: Comma separated required job names.
+    required: true
+  author:
+    description: Trusted update author.
+    default: dependabot[bot]
+runs:
+  using: node24
+  main: dist/index.js

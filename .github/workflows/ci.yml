@@ -1,0 +1,56 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  check:
+    name: Source checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check:ci
+  dist:
+    name: Check dist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check-dist
+  smoke:
+    name: Action smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Write synthetic unrelated event
+        shell: bash
+        run: |
+          echo '{"workflow_run":{"id":1,"run_attempt":1,"event":"pull_request","conclusion":"success","head_sha":"head","head_repository":{"full_name":"other/repo"},"pull_requests":[]}}' > "$RUNNER_TEMP/accumulator-event.json"
+          echo "ACCUMULATOR_EVENT=$RUNNER_TEMP/accumulator-event.json" >> "$GITHUB_ENV"
+      - name: Exercise Action
+        uses: ./
+        env:
+          GITHUB_EVENT_PATH: ${{ env.ACCUMULATOR_EVENT }}
+        with:
+          github-token: synthetic-token
+          branch: feature/dependencies
+          checks-workflow: dependency-checks.yml
+          required-jobs: Dependency checks
