@@ -40,17 +40,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Write synthetic unrelated event
-        shell: bash
-        run: |
-          echo '{"workflow_run":{"id":1,"run_attempt":1,"event":"pull_request","conclusion":"success","head_sha":"head","head_repository":{"full_name":"other/repo"},"pull_requests":[]}}' > "$RUNNER_TEMP/accumulator-event.json"
-          echo "ACCUMULATOR_EVENT=$RUNNER_TEMP/accumulator-event.json" >> "$GITHUB_ENV"
-      - name: Exercise Action
+      - id: accumulator
         uses: ./
-        env:
-          GITHUB_EVENT_PATH: ${{ env.ACCUMULATOR_EVENT }}
+        continue-on-error: true
         with:
           github-token: synthetic-token
           branch: feature/dependencies
           checks-workflow: dependency-checks.yml
           required-jobs: Dependency checks
+      - name: Verify non-workflow_run event is rejected
+        env:
+          OUTCOME: ${{ steps.accumulator.outcome }}
+        run: test "$OUTCOME" = 'failure'

@@ -39081,6 +39081,9 @@ function setFailed(message) {
 function error(message, properties = {}) {
   issueCommand("error", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
+function warning(message, properties = {}) {
+  issueCommand("warning", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
+}
 function info(message) {
   process.stdout.write(message + os3.EOL);
 }
@@ -43844,6 +43847,7 @@ async function accumulate(event, gateway, options) {
 
 // src/index.ts
 async function run() {
+  let summaryMessages = [];
   try {
     const token = getInput("github-token", { required: true });
     const branch = getInput("branch", { required: true });
@@ -43970,15 +43974,30 @@ async function run() {
       author,
       requiredJobs
     });
+    summaryMessages = messages;
     for (const message of messages) info(message);
-    if (process.env["GITHUB_STEP_SUMMARY"] !== void 0) {
-      summary.addHeading("Dependency accumulator");
-      for (const message of messages) summary.addRaw(`${message}
-`);
-      await summary.write();
-    }
   } catch (error2) {
-    setFailed(error2 instanceof Error ? error2.message : String(error2));
+    const message = error2 instanceof Error && [
+      "workflow_run event required",
+      "required-jobs is empty",
+      "Invalid workflow run",
+      "Invalid run PR association",
+      "GitHub did not merge the validated dependency pull request"
+    ].includes(error2.message) ? error2.message : "Dependency accumulator failed; API details withheld";
+    summaryMessages = [message];
+    setFailed(message);
+  } finally {
+    if (process.env["GITHUB_STEP_SUMMARY"] !== void 0) {
+      try {
+        summary.addHeading("Dependency accumulator");
+        for (const message of summaryMessages)
+          summary.addRaw(`${message}
+`);
+        await summary.write();
+      } catch {
+        warning("Could not write accumulator summary");
+      }
+    }
   }
 }
 await run();

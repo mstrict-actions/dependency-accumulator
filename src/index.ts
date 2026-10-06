@@ -3,6 +3,7 @@ import * as github from '@actions/github'
 import { accumulate, type Gateway, type Pull, type Run } from './main.ts'
 
 async function run(): Promise<void> {
+  let summaryMessages: string[] = []
   try {
     const token = core.getInput('github-token', { required: true })
     const branch = core.getInput('branch', { required: true })
@@ -181,14 +182,33 @@ async function run(): Promise<void> {
       author,
       requiredJobs,
     })
+    summaryMessages = messages
     for (const message of messages) core.info(message)
-    if (process.env['GITHUB_STEP_SUMMARY'] !== undefined) {
-      core.summary.addHeading('Dependency accumulator')
-      for (const message of messages) core.summary.addRaw(`${message}\n`)
-      await core.summary.write()
-    }
   } catch (error) {
-    core.setFailed(error instanceof Error ? error.message : String(error))
+    const message =
+      error instanceof Error &&
+      [
+        'workflow_run event required',
+        'required-jobs is empty',
+        'Invalid workflow run',
+        'Invalid run PR association',
+        'GitHub did not merge the validated dependency pull request',
+      ].includes(error.message)
+        ? error.message
+        : 'Dependency accumulator failed; API details withheld'
+    summaryMessages = [message]
+    core.setFailed(message)
+  } finally {
+    if (process.env['GITHUB_STEP_SUMMARY'] !== undefined) {
+      try {
+        core.summary.addHeading('Dependency accumulator')
+        for (const message of summaryMessages)
+          core.summary.addRaw(`${message}\n`)
+        await core.summary.write()
+      } catch {
+        core.warning('Could not write accumulator summary')
+      }
+    }
   }
 }
 
